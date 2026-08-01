@@ -1,6 +1,8 @@
 import { WebSocket } from 'ws'
 import { WORDS } from './words.mjs'
 
+const validWords = new Set(WORDS)
+
 const rooms = new Map()
 const clients = new Map()
 
@@ -233,6 +235,15 @@ function makeGuess(ws, guessRaw) {
   const guess = (guessRaw || '').toLowerCase()
   if (!/^[a-z]{5}$/.test(guess)) {
     send(ws, { type: 'error', message: 'Guesses must be 5 letters' })
+    return
+  }
+  if (!validWords.has(guess)) {
+    notifyRoom(room, {
+      [player.slot]: {
+        text: `${guess.toUpperCase()} is not a valid word`,
+        kind: 'error',
+      },
+    })
     return
   }
 
