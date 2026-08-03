@@ -1,12 +1,17 @@
 'use client'
 
+import { useState } from 'react'
 import { Game } from '@/components/Game'
 import { Lobby } from '@/components/Lobby'
+import { ModeSelect } from '@/components/ModeSelect'
 import { WaitingRoom } from '@/components/WaitingRoom'
+import { DuelPicking } from '@/components/DuelPicking'
 import { useGameSocket } from '@/components/useGameSocket'
+import type { Mode } from '@/lib/types'
 
 export default function Home() {
   const game = useGameSocket()
+  const [mode, setMode] = useState<Mode | null>(null)
 
   return (
     <main className="flex flex-1 items-center justify-center p-6">
@@ -15,11 +20,17 @@ export default function Home() {
           <div className="h-6 w-6 animate-spin rounded-full border-2 border-zinc-300 border-t-zinc-900 dark:border-zinc-700 dark:border-t-zinc-50" />
           <p className="text-sm">Connecting to server...</p>
         </div>
-      ) : !game.room ? (
-        <Lobby error={game.error} createRoom={game.createRoom} joinRoom={game.joinRoom} />
-      ) : game.room.status === 'waiting' ? (
-        <WaitingRoom room={game.room} />
-      ) : (
+      ) : game.room?.status === 'waiting' ? (
+        <WaitingRoom room={game.room} isCreator={game.self?.slot === 0} />
+      ) : game.room?.status === 'picking' ? (
+        <DuelPicking
+          room={game.room}
+          self={game.self}
+          error={game.error}
+          toast={game.toast}
+          pickWord={game.pickWord}
+        />
+      ) : game.room ? (
         <Game
           room={game.room}
           self={game.self}
@@ -27,6 +38,25 @@ export default function Home() {
           toast={game.toast}
           makeGuess={game.makeGuess}
           nextRound={game.nextRound}
+        />
+      ) : game.isJoiner ? (
+        <div className="flex w-full max-w-md flex-col items-center gap-3 text-zinc-500 dark:text-zinc-400">
+          <div className="h-6 w-6 animate-spin rounded-full border-2 border-zinc-300 border-t-zinc-900 dark:border-zinc-700 dark:border-t-zinc-50" />
+          <p className="text-sm">Joining your opponent&apos;s room...</p>
+          {game.error && (
+            <p className="rounded-lg bg-red-50 px-4 py-2.5 text-center text-sm font-medium text-red-600 dark:bg-red-950/50 dark:text-red-400">
+              {game.error}
+            </p>
+          )}
+        </div>
+      ) : !mode ? (
+        <ModeSelect onSelect={setMode} />
+      ) : (
+        <Lobby
+          mode={mode}
+          error={game.error}
+          createRoom={game.createRoom}
+          onBack={() => setMode(null)}
         />
       )}
     </main>

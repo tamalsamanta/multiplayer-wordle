@@ -1,21 +1,23 @@
 'use client'
 
 import { useState } from 'react'
+import type { Mode } from '@/lib/types'
 
 interface LobbyProps {
+  mode: Mode
   error: string | null
-  createRoom: (name: string) => void
-  joinRoom: (code: string, name: string) => void
+  createRoom: (mode: Mode, name: string) => void
+  onBack: () => void
 }
 
-export function Lobby({ error, createRoom, joinRoom }: LobbyProps) {
+export function Lobby({ mode, error, createRoom, onBack }: LobbyProps) {
   const [name, setName] = useState('')
-  const [code, setCode] = useState('')
 
-  const submit = (action: 'create' | 'join') => {
+  const duel = mode === 'duel'
+
+  const submit = () => {
     if (!name.trim()) return
-    if (action === 'create') createRoom(name.trim())
-    else joinRoom(code.trim(), name.trim())
+    createRoom(mode, name.trim())
   }
 
   const inputClass =
@@ -26,9 +28,19 @@ export function Lobby({ error, createRoom, joinRoom }: LobbyProps) {
       <header className="flex flex-col items-center gap-2 text-center">
         <h1 className="text-4xl font-black tracking-tight">Wordle Duel</h1>
         <p className="text-sm text-zinc-500 dark:text-zinc-400">
-          Two players. One word. Race to solve it — fewer guesses wins.
+          {duel
+            ? "Two players. Secret words. Solve your opponent's word — first to solve wins."
+            : 'Two players. One word. Race to solve it — first to solve wins.'}
         </p>
       </header>
+
+      <button
+        type="button"
+        onClick={onBack}
+        className="self-center text-xs font-medium text-zinc-400 transition-colors hover:text-zinc-900 dark:hover:text-zinc-50"
+      >
+        ← Change mode ({mode === 'race' ? 'Race' : 'Duel'})
+      </button>
 
       <div className="flex flex-col gap-4 rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm dark:border-zinc-800 dark:bg-zinc-950">
         <label className="flex flex-col gap-1.5">
@@ -41,47 +53,22 @@ export function Lobby({ error, createRoom, joinRoom }: LobbyProps) {
             maxLength={20}
             placeholder="Player"
             onChange={(e) => setName(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && submit('create')}
+            onKeyDown={(e) => e.key === 'Enter' && submit()}
           />
         </label>
 
         <button
           type="button"
           disabled={!name.trim()}
-          onClick={() => submit('create')}
+          onClick={submit}
           className="rounded-lg bg-zinc-900 px-4 py-2.5 text-sm font-semibold text-white transition-opacity hover:opacity-80 disabled:opacity-40 dark:bg-zinc-50 dark:text-zinc-900"
         >
           Create room
         </button>
 
-        <div className="flex items-center gap-3 text-xs text-zinc-400">
-          <div className="h-px flex-1 bg-zinc-200 dark:bg-zinc-800" />
-          or
-          <div className="h-px flex-1 bg-zinc-200 dark:bg-zinc-800" />
-        </div>
-
-        <label className="flex flex-col gap-1.5">
-          <span className="text-xs font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
-            Room code
-          </span>
-          <input
-            className={`${inputClass} font-mono uppercase tracking-widest`}
-            value={code}
-            maxLength={4}
-            placeholder="ABCD"
-            onChange={(e) => setCode(e.target.value.toUpperCase())}
-            onKeyDown={(e) => e.key === 'Enter' && submit('join')}
-          />
-        </label>
-
-        <button
-          type="button"
-          disabled={!name.trim() || code.trim().length !== 4}
-          onClick={() => submit('join')}
-          className="rounded-lg border border-zinc-300 px-4 py-2.5 text-sm font-semibold text-zinc-900 transition-colors hover:bg-zinc-100 disabled:opacity-40 dark:border-zinc-700 dark:text-zinc-50 dark:hover:bg-zinc-900"
-        >
-          Join room
-        </button>
+        <p className="text-center text-xs text-zinc-400">
+          After creating, you&apos;ll get an invite link to share with your opponent.
+        </p>
       </div>
 
       {error && (

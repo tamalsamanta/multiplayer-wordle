@@ -43,6 +43,7 @@ function emptyGame() {
   return {
     board: [],
     status: 'playing',
+    word: null,
     solvedIn: null,
     finishedAt: null,
   }
@@ -77,10 +78,17 @@ function send(ws, msg) {
 }
 
 function newRound(room) {
-  room.word = pickWord()
+  room.picks = [null, null]
   room.games = [emptyGame(), emptyGame()]
-  room.status = 'playing'
   room.roundWinner = null
+  if (room.mode === 'duel') {
+    room.status = 'picking'
+    return
+  }
+  const word = pickWord()
+  room.games[0].word = word
+  room.games[1].word = word
+  room.status = 'playing'
 }
 
 function personalRoom(room, slot) {
@@ -89,6 +97,7 @@ function personalRoom(room, slot) {
   const oppPlayer = room.players[oppSlot]
   const oppGame = room.games[oppSlot]
   const myDone = game.status !== 'playing'
+  const duel = room.mode === 'duel'
 
   return {
     code: room.code,
@@ -96,6 +105,7 @@ function personalRoom(room, slot) {
     scores: room.scores,
     wordLength: room.wordLength,
     maxGuesses: room.maxGuesses,
+    mode: room.mode,
     status: room.status,
     roundWinner: room.roundWinner,
     players: room.players.map((p) => ({
@@ -126,7 +136,20 @@ function personalRoom(room, slot) {
           status: 'playing',
           solvedIn: null,
         },
-    ...(myDone ? { answer: room.word } : {}),
+    ...(myDone ? { answer: game.word } : {}),
+    ...(duel && room.status === 'picking'
+      ? {
+          picking: {
+            myTurn:
+              room.picks[slot] == null && (slot === 0 || room.picks[0] != null),
+            myPicked: room.picks[slot] != null,
+            oppPicked: room.picks[oppSlot] != null,
+          },
+        }
+      : {}),
+    ...(duel && room.status === 'over'
+      ? { duelWords: { mine: game.word, theirs: oppGame.word } }
+      : {}),
   }
 }
 
@@ -146,14 +169,14 @@ function computeRoundWinner(room) {
   const g0 = room.games[0]
   const g1 = room.games[1]
   if (!g0 || !g1) return null
-  if (g0.status === 'solved' && g1.status === 'solved') {
-    if (g0.solvedIn !== g1.solvedIn) {
-      return g0.solvedIn < g1.solvedIn ? 0 : 1
-    }
-    return g0.finishedAt <= g1.finishedAt ? 0 : 1
+  const solved0 = g0.status === 'solved'
+  const solved1 = g1.status === 'solved'
+  if (solved0 && solved1) {
+    if (g0.finishedAt === g1.finishedAt) return null
+    return g0.finishedAt < g1.finishedAt ? 0 : 1
   }
-  if (g0.status === 'solved') return 0
-  if (g1.status === 'solved') return 1
+  if (solved0) return 0
+  if (solved1) return 1
   return null
 }
 
@@ -169,16 +192,17 @@ function maybeFinishRound(room) {
   }
 }
 
-function createRoom(ws, name) {
+function createRoom(ws, name, mode) {
   const code = randomCode()
   const room = {
     code,
+    mode: mode === 'duel' ? 'duel' : 'race',
     wordLength: WORD_LENGTH,
     maxGuesses: MAX_GUESSES,
     round: 1,
     scores: [0, 0],
-    word: null,
     games: [emptyGame(), emptyGame()],
+    picks: [null, null],
     status: 'waiting',
     roundWinner: null,
     players: [makePlayer(ws, name, 0)],
@@ -247,11 +271,14 @@ function makeGuess(ws, guessRaw) {
     return
   }
 
-  const feedback = computeFeedback(guess, room.word)
+  const word = game.word
+  if (!word) return
+
+  const feedback = computeFeedback(guess, word)
   game.board.push({ guess, feedback })
 
   const toasts = {}
-  if (guess === room.word) {
+  if (guess === word) {
     game.status = 'solved'
     game.solvedIn = game.board.length
     game.finishedAt = Date.now()
@@ -274,6 +301,49 @@ function makeGuess(ws, guessRaw) {
   }
 
   if (game.status !== 'playing') maybeFinishRound(room)
+
+  notifyRoom(room, toasts)
+}
+
+function submitPick(ws, wordRaw) {
+  const client = clients.get(ws)
+  if (!client) return
+  const room = rooms.get(client.code)
+  if (!room || room.mode !== 'duel' || room.status !== 'picking') return
+  const player = room.players.find((p) => p.ws === ws)
+  if (!player) return
+  const slot = player.slot
+  const oppSlot = slot === 0 ? 1 : 0
+  if (room.picks[slot] != null) return
+  if (slot === 1 && room.picks[0] == null) {
+    send(ws, {
+      type: 'error',
+      message: 'Wait for your opponent to submit a word first',
+    })
+    return
+  }
+
+  const word = (wordRaw || '').toLowerCase()
+  if (!/^[a-z]{5}$/.test(word)) {
+    send(ws, { type: 'error', message: 'Words must be 5 letters' })
+    return
+  }
+  if (!validWords.has(word)) {
+    send(ws, { type: 'error', message: `${word.toUpperCase()} is not a valid word` })
+    return
+  }
+
+  room.picks[slot] = word
+  room.games[oppSlot].word = word
+
+  const toasts = {}
+  if (room.picks[0] != null && room.picks[1] != null) {
+    room.status = 'playing'
+    toasts[slot] = { text: 'Word set. Game on!', kind: 'success' }
+  } else {
+    toasts[slot] = { text: 'Word set. Waiting for your opponent.', kind: 'success' }
+    toasts[oppSlot] = { text: 'Your turn — pick a word for your opponent!', kind: 'info' }
+  }
 
   notifyRoom(room, toasts)
 }
@@ -306,6 +376,17 @@ function leaveRoom(ws) {
     return
   }
 
+  if (room.mode === 'duel' && room.status === 'picking') {
+    const oppSlot = player.slot === 0 ? 1 : 0
+    if (room.picks[player.slot] == null) {
+      room.picks[player.slot] = pickWord()
+      room.games[oppSlot].word = room.picks[player.slot]
+    }
+    if (room.picks[0] != null && room.picks[1] != null) {
+      room.status = 'playing'
+    }
+  }
+
   // Forfeit an unfinished game so the round can still conclude
   const game = room.games[player.slot]
   if (game && game.status === 'playing') {
@@ -322,7 +403,7 @@ function handleMessage(ws, msg) {
   switch (msg.type) {
     case 'create-room':
       leaveRoom(ws)
-      createRoom(ws, msg.name)
+      createRoom(ws, msg.name, msg.mode)
       break
     case 'join-room':
       leaveRoom(ws)
@@ -330,6 +411,9 @@ function handleMessage(ws, msg) {
       break
     case 'make-guess':
       makeGuess(ws, msg.guess)
+      break
+    case 'pick-word':
+      submitPick(ws, msg.word)
       break
     case 'next-round':
       nextRound(ws)

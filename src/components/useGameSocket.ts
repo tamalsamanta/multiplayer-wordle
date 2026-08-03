@@ -3,17 +3,21 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type {
   ClientMessage,
+  Mode,
   Room,
   SelfInfo,
   ServerMessage,
   Toast,
 } from '@/lib/types'
 
+const GUEST_NAME = 'Player 2'
+
 export function useGameSocket() {
   const wsRef = useRef<WebSocket | null>(null)
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [connected, setConnected] = useState(false)
+  const [isJoiner, setIsJoiner] = useState(false)
   const [room, setRoom] = useState<Room | null>(null)
   const [self, setSelf] = useState<SelfInfo | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -29,7 +33,20 @@ export function useGameSocket() {
       wsRef.current = ws
 
       ws.onopen = () => {
-        if (wsRef.current === ws) setConnected(true)
+        if (wsRef.current === ws) {
+          setConnected(true)
+          const joinCode = new URLSearchParams(window.location.search).get('join')
+          if (joinCode) {
+            setIsJoiner(true)
+            ws.send(
+              JSON.stringify({
+                type: 'join-room',
+                code: joinCode.trim().toUpperCase(),
+                name: GUEST_NAME,
+              })
+            )
+          }
+        }
       }
 
       ws.onmessage = (event) => {
@@ -78,17 +95,21 @@ export function useGameSocket() {
 
   return {
     connected,
+    isJoiner,
     room,
     self,
     error,
     toast,
-    createRoom: useCallback((name: string) => send({ type: 'create-room', name }), [send]),
-    joinRoom: useCallback(
-      (code: string, name: string) => send({ type: 'join-room', code, name }),
+    createRoom: useCallback(
+      (mode: Mode, name: string) => send({ type: 'create-room', name, mode }),
       [send]
     ),
     makeGuess: useCallback(
       (guess: string) => send({ type: 'make-guess', guess }),
+      [send]
+    ),
+    pickWord: useCallback(
+      (word: string) => send({ type: 'pick-word', word }),
       [send]
     ),
     nextRound: useCallback(() => send({ type: 'next-round' }), [send]),

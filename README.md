@@ -4,9 +4,10 @@ A simple 2-player multiplayer Wordle built with Next.js (App Router) and WebSock
 
 ## How it works
 
-- One player creates a room and shares the 4-letter room code.
-- The second player joins with that code.
-- Both players race to solve the same word on their own boards. Fewer guesses wins the round; if the guess counts tie, the first to finish wins. Rounds continue and scores accumulate.
+- One player picks a game mode (Race or Duel), enters a name, and creates a room.
+- The creator gets a copyable invite link and shares it (only the creator sees it).
+- The second player opens the link and joins the game directly — no code or mode selection needed.
+- Both players race to solve the word on their own boards. Whoever solves it first wins the round; rounds continue and scores accumulate.
 
 ## Getting started
 

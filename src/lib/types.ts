@@ -7,6 +7,8 @@ export interface GuessRow {
 
 export type GameStatus = 'playing' | 'solved' | 'failed'
 
+export type Mode = 'race' | 'duel'
+
 export interface MyGame {
   board: GuessRow[]
   status: GameStatus
@@ -30,17 +32,31 @@ export interface PublicPlayer {
   offline: boolean
 }
 
+export interface DuelPickView {
+  myTurn: boolean
+  myPicked: boolean
+  oppPicked: boolean
+}
+
+export interface DuelWordsView {
+  mine: string
+  theirs: string
+}
+
 export interface Room {
   code: string
   round: number
   scores: [number, number]
   wordLength: number
   maxGuesses: number
-  status: 'waiting' | 'playing' | 'over'
+  mode: Mode
+  status: 'waiting' | 'picking' | 'playing' | 'over'
   roundWinner: 0 | 1 | null
   players: PublicPlayer[]
   my: MyGame
   opponent: OpponentView
+  picking?: DuelPickView
+  duelWords?: DuelWordsView
   answer?: string
 }
 
@@ -62,7 +78,8 @@ export type ServerMessage =
   | { type: 'error'; message: string }
 
 export type ClientMessage =
-  | { type: 'create-room'; name: string }
+  | { type: 'create-room'; name: string; mode: Mode }
   | { type: 'join-room'; code: string; name: string }
   | { type: 'make-guess'; guess: string }
+  | { type: 'pick-word'; word: string }
   | { type: 'next-round' }
