@@ -60,6 +60,12 @@ export function Game({ room, self, error, toast, makeGuess, nextRound }: GamePro
   const roundOver = room.status === 'over'
   const iWon = roundOver && room.roundWinner === mySlot
 
+  const modeLabel = room.mode === 'race' ? 'Race' : 'Duel'
+  const modeHint =
+    room.mode === 'race'
+      ? 'Solve it first'
+      : 'Solve your opponent\u2019s word'
+
   const myProgress = `${myGame.guessCount} guess${myGame.guessCount === 1 ? '' : 'es'}`
   const oppProgress = opponent.solvedIn != null
     ? `solved in ${opponent.solvedIn}`
@@ -122,10 +128,10 @@ export function Game({ room, self, error, toast, makeGuess, nextRound }: GamePro
         </div>
         <div className="text-right">
           <p className="text-xs font-semibold uppercase tracking-wide text-zinc-400">
-            Race
+            {modeLabel}
           </p>
           <p className="text-sm text-zinc-500 dark:text-zinc-400">
-            Solve it first
+            {modeHint}
           </p>
         </div>
       </header>
@@ -154,6 +160,12 @@ export function Game({ room, self, error, toast, makeGuess, nextRound }: GamePro
             The word was{' '}
             <span className="font-mono font-bold uppercase">{room.answer}</span>
           </p>
+          {room.mode === 'duel' && room.duelWords && (
+            <p className="text-sm text-zinc-500 dark:text-zinc-400">
+              <span className="font-mono font-bold uppercase">{room.duelWords.theirs}</span>{' '}
+              was the word you set for {opponent.name}.
+            </p>
+          )}
           <p className="text-sm font-semibold text-zinc-900 dark:text-zinc-50">
             {room.scores[0]} – {room.scores[1]}
           </p>
@@ -177,8 +189,10 @@ export function Game({ room, self, error, toast, makeGuess, nextRound }: GamePro
             {myDone
               ? 'Waiting for your opponent to finish...'
               : opponentsDone
-                ? `${opponent.name} already finished — beat their score!`
-                : 'Race your opponent to solve the word!'}
+                ? `${opponent.name} already finished first.`
+                : room.mode === 'race'
+                  ? 'Race your opponent to solve the word!'
+                  : 'Solve the word your opponent picked for you!'}
           </p>
         </>
       )}
