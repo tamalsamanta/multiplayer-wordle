@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { Game } from '@/components/Game'
+import { JoinScreen } from '@/components/JoinScreen'
 import { Lobby } from '@/components/Lobby'
 import { ModeSelect } from '@/components/ModeSelect'
 import { WaitingRoom } from '@/components/WaitingRoom'
@@ -39,16 +40,8 @@ export default function Home() {
           makeGuess={game.makeGuess}
           nextRound={game.nextRound}
         />
-      ) : game.isJoiner ? (
-        <div className="flex w-full max-w-md flex-col items-center gap-3 text-zinc-500 dark:text-zinc-400">
-          <div className="h-6 w-6 animate-spin rounded-full border-2 border-zinc-300 border-t-zinc-900 dark:border-zinc-700 dark:border-t-zinc-50" />
-          <p className="text-sm">Joining your opponent&apos;s room...</p>
-          {game.error && (
-            <p className="rounded-lg bg-red-50 px-4 py-2.5 text-center text-sm font-medium text-red-600 dark:bg-red-950/50 dark:text-red-400">
-              {game.error}
-            </p>
-          )}
-        </div>
+      ) : game.joinCode ? (
+        <JoinScreen error={game.error} joinRoom={game.joinRoom} />
       ) : !mode ? (
         <ModeSelect onSelect={setMode} />
       ) : (
