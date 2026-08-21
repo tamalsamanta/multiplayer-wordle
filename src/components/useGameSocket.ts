@@ -10,18 +10,28 @@ import type {
   Toast,
 } from '@/lib/types'
 
-const GUEST_NAME = 'Player 2'
-
 export function useGameSocket() {
   const wsRef = useRef<WebSocket | null>(null)
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const nameRef = useRef<string | null>(null)
+  const joinCodeRef = useRef<string | null>(null)
   const [connected, setConnected] = useState(false)
-  const [isJoiner, setIsJoiner] = useState(false)
+  const [joinCode, setJoinCode] = useState<string | null>(null)
   const [room, setRoom] = useState<Room | null>(null)
   const [self, setSelf] = useState<SelfInfo | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [toast, setToast] = useState<Toast | null>(null)
+
+  useEffect(() => {
+    const code =
+      new URLSearchParams(window.location.search).get('join')?.trim().toUpperCase() ??
+      null
+    if (code) {
+      joinCodeRef.current = code
+      setJoinCode(code)
+    }
+  }, [])
 
   useEffect(() => {
     let closed = false
@@ -35,15 +45,10 @@ export function useGameSocket() {
       ws.onopen = () => {
         if (wsRef.current === ws) {
           setConnected(true)
-          const joinCode = new URLSearchParams(window.location.search).get('join')
-          if (joinCode) {
-            setIsJoiner(true)
+          const code = joinCodeRef.current
+          if (code && nameRef.current) {
             ws.send(
-              JSON.stringify({
-                type: 'join-room',
-                code: joinCode.trim().toUpperCase(),
-                name: GUEST_NAME,
-              })
+              JSON.stringify({ type: 'join-room', code, name: nameRef.current })
             )
           }
         }
@@ -95,13 +100,22 @@ export function useGameSocket() {
 
   return {
     connected,
-    isJoiner,
+    joinCode,
     room,
     self,
     error,
     toast,
     createRoom: useCallback(
       (mode: Mode, name: string) => send({ type: 'create-room', name, mode }),
+      [send]
+    ),
+    joinRoom: useCallback(
+      (name: string) => {
+        const code = joinCodeRef.current
+        if (!code) return
+        nameRef.current = name
+        send({ type: 'join-room', code, name })
+      },
       [send]
     ),
     makeGuess: useCallback(
